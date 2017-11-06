@@ -1,0 +1,19 @@
+dat <- read.csv("gambiaMissing.csv")
+# Y: indicator of whether malaria parasites were found in a blood sample from the child (1 = yes)
+# AGE: age of the child, in years
+# BEDNET: indicator of whether the child has a net over his or her bed (1 = yes)
+# GREEN: a measure of how much greenery is around the child's village, derived from satellite images (units are arbitrary)
+# PHC: indicator for the presence of a public health clinic in the child's village (1 = yes)
+
+summary(dat)      #bednet is the only column with NA's
+#GREEN only has 5 unique values
+NArows <- which(is.na(dat$BEDNET))
+dat$miss <- as.numeric(is.na(dat$BEDNET))
+
+nullmod <- glm(miss ~ 1, family="binomial", data=dat)
+fullmod <- glm(miss ~ AGE + GREEN + PHC, family="binomial", data=dat) #AGE and PHC appear to be "significant" predictors of missing BEDNET
+(anova(nullmod, fullmod, test="Chisq"))[[5]][2]
+pchisq(fullmod$deviance, fullmod$df.residual,lower = FALSE)
+
+arm::binnedplot(nullmod$fitted.values, nullmod$residuals)
+arm::binnedplot(fullmod$fitted.values, fullmod$residuals)
