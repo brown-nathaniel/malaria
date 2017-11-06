@@ -17,7 +17,29 @@ blah blah blah malaria.
 
 # Exploratory Data Analysis
 
-plots go here
+```{r}
+dat <- read.csv("gambiaMissing.csv")
+
+bednet_group <- function(dat= NA, predictor = NA){
+  bednet_group <- dat %>% 
+                group_by_(predictor) %>% 
+                summarize(BEDNET0 = mean(BEDNET==0 & !is.na(BEDNET)), 
+                          BEDNET1 = mean(BEDNET==1 & !is.na(BEDNET)), 
+                          BEDNETNA = mean(is.na(BEDNET))) %>%
+                melt(id=predictor)
+  return(bednet_group)
+}
+
+bednet_age <- bednet_group(dat, "AGE")
+bednet_green <- bednet_group(dat, "GREEN")
+bednet_phc <- bednet_group(dat, "PHC")
+bednet_y <- bednet_group(dat, "Y")
+
+ggplot(data=bednet_age, aes(x=as.factor(AGE), y=value, fill=variable)) + geom_col(position="dodge")
+ggplot(data=bednet_green, aes(x=as.factor(GREEN), y=value+1E-10, fill=variable)) + geom_col(position="dodge")
+ggplot(data=bednet_phc, aes(x=as.factor(PHC), y=value, fill=variable)) + geom_col(position="dodge")
+ggplot(data=bednet_y, aes(x=as.factor(Y), y=value, fill=variable)) + geom_col(position="dodge")
+```
 
 # Test for Missingness Mechanism
 

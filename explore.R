@@ -1,4 +1,4 @@
-library(ggplot2)
+library(ggplot2); library(reshape2)
 dat <- read.csv("gambiaMissing.csv")
 # Y: indicator of whether malaria parasites were found in a blood sample from the child (1 = yes)
 # AGE: age of the child, in years
@@ -21,9 +21,17 @@ arm::binnedplot(fullmod$fitted.values, fullmod$residuals)
 
 hist(dat$GREEN)
 
-dat2 <- dat %>% group_by(AGE) %>% mutate(BEDNET2 = )
+group_bednet <- function(predictor = NA){
+  bednet_group <- dat %>% 
+                group_by_(predictor) %>% 
+                summarize(BEDNET1 = mean(BEDNET==1 & !is.na(BEDNET)), 
+                          BEDNET0 = mean(BEDNET==0 & !is.na(BEDNET)), 
+                          BEDNETNA = mean(is.na(BEDNET))) %>%
+                melt(id=predictor)
+  return(bednet_group)
+}
 
-ggplot(data=dat, aes(x=AGE)) + geom_bar(aes(fill=as.factor(BEDNET)), position="dodge")
+ggplot(data=bednet_age, aes(x=AGE, y=value, fill=variable)) + geom_col(position="dodge")#+ geom_bar(aes(fill=as.factor(BEDNET)), position="dodge")
 
 ggplot(data=dat, aes(x=as.factor(GREEN))) + geom_bar(aes(fill=as.factor(BEDNET)), position="dodge")
 
