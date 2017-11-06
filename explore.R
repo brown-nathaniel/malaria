@@ -1,3 +1,4 @@
+library(ggplot2)
 dat <- read.csv("gambiaMissing.csv")
 # Y: indicator of whether malaria parasites were found in a blood sample from the child (1 = yes)
 # AGE: age of the child, in years
@@ -12,8 +13,20 @@ dat$miss <- as.numeric(is.na(dat$BEDNET))
 
 nullmod <- glm(miss ~ 1, family="binomial", data=dat)
 fullmod <- glm(miss ~ AGE + GREEN + PHC, family="binomial", data=dat) #AGE and PHC appear to be "significant" predictors of missing BEDNET
-(anova(nullmod, fullmod, test="Chisq"))[[5]][2]
+(anova(nullmod, fullmod, test="Chisq"))
 pchisq(fullmod$deviance, fullmod$df.residual,lower = FALSE)
 
 arm::binnedplot(nullmod$fitted.values, nullmod$residuals)
 arm::binnedplot(fullmod$fitted.values, fullmod$residuals)
+
+hist(dat$GREEN)
+
+dat2 <- dat %>% group_by(AGE) %>% mutate(BEDNET2 = )
+
+ggplot(data=dat, aes(x=AGE)) + geom_bar(aes(fill=as.factor(BEDNET)), position="dodge")
+
+ggplot(data=dat, aes(x=as.factor(GREEN))) + geom_bar(aes(fill=as.factor(BEDNET)), position="dodge")
+
+ggplot(data=dat, aes(x=as.factor(PHC))) + geom_bar(aes(fill=as.factor(BEDNET)), position="dodge")
+
+ggplot(data=dat, aes(x=as.factor(Y))) + geom_bar(aes(fill=as.factor(BEDNET)), position="dodge")

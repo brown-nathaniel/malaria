@@ -1,0 +1,32 @@
+---
+title: "report1"
+author: "Nathaniel Brown, Huijia Yu, Angie Shen"
+date: "November 6, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message=FALSE)
+library(ggplot2)
+library(dplyr)
+```
+
+# Introduction
+
+blah blah blah malaria.
+
+# Exploratory Data Analysis
+
+plots go here
+
+# Test for Missingness Mechanism
+
+glm goes here
+
+# Discussion of Approaches
+
+blah blah blah
+
+# Contributions
+
+blah
