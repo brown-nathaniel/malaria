@@ -5,16 +5,28 @@ date: "November 6, 2017"
 output: pdf_document
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, warning=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message=FALSE)
 library(reshape2)
 library(ggplot2)
 library(dplyr)
+library(mice)
+library(VIM)
 ```
 
 # Introduction
 
-blah blah blah malaria.
+We are interested in predicting whether malaria parasites will be found in a child's blood based on his/her age, bednet use, greenery in his/her village, and presence of a health clinic. However, almost 40% of the observations do not have bednet use reported, so we cannot throw out those observations and will instead use imputation to recreate those values.
+
+
+```{r}
+dat <- read.csv("gambiaMissing.csv")
+dat$Y = factor(dat$Y)
+dat$BEDNET = factor(dat$BEDNET)
+dat$PHC = factor(dat$PHC)
+summary(dat)
+```
+
 
 # Exploratory Data Analysis
 
@@ -42,13 +54,33 @@ ggplot(data=bednet_phc, aes(x=as.factor(PHC), y=value, fill=variable)) + geom_co
 ggplot(data=bednet_y, aes(x=as.factor(Y), y=value, fill=variable)) + geom_col(position="dodge")
 ```
 
+There appears to be correlation between missingness in the bednet variable and the other predictors and the response.
+
 # Test for Missingness Mechanism
 
-glm goes here
+```{r}
+NArows <- which(is.na(dat$BEDNET))
+dat$miss <- as.numeric(is.na(dat$BEDNET))
+
+nullmod <- glm(miss ~ 1, family="binomial", data=dat)
+fullmod <- glm(miss ~ AGE + GREEN + PHC, family="binomial", data=dat) #AGE and PHC appear to be "significant" predictors of missing BEDNET
+(anova(nullmod, fullmod, test="Chisq"))
+pchisq(fullmod$deviance, fullmod$df.residual,lower = FALSE)
+
+```
+Based on this test, the missingness mechanism is not completely at random. There is no way of knowing whether ir it MAR or NMAR. 
 
 # Discussion of Approaches
 
-blah blah blah
+Since the data is not MCAR, we cannot use bootstrapping within the bednet variable. We will use chained regression to impute the missing values and calculate malaria prevalence. 
+
+```{r}
+temp <- mice(dat, method = c("", "", "logreg", "", "", ""), print = FALSE)
+summary(temp)
+ggplot(data=complete(temp), aes(x=AGE)) + geom_bar(aes(fill=as.factor(BEDNET)), position="dodge")
+densityPlot(temp)
+summary(complete(temp))
+```
 
 # Contributions
 
