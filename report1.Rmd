@@ -68,91 +68,27 @@ fullmod <- glm(miss ~ AGE + GREEN + PHC, family="binomial", data=dat) #AGE and P
 pchisq(fullmod$deviance, fullmod$df.residual,lower = FALSE)
 
 ```
-Based on this test, the missingness mechanism is not completely at random. There is no way of knowing whether ir it MAR or NMAR. 
+Based on this test, the missingness mechanism is not completely at random. There is no way of knowing whether it is MAR or NMAR. 
 
 # Discussion of Approaches
 
 Since the data is not MCAR, we cannot use bootstrapping within the bednet variable. We will use chained regression to impute the missing values and calculate malaria prevalence. 
 
 ```{r}
-temp <- mice(dat, method = c("", "", "logreg", "", "", ""), print = FALSE)
-summary(temp)
-ggplot(data=complete(temp), aes(x=AGE)) + geom_bar(aes(fill=as.factor(BEDNET)), position="dodge")
-densityPlot(temp)
-summary(complete(temp))
+temp <- mice(dat, m = 10, maxit = 35,method = c("", "", "logreg", "", "", ""), print = FALSE)
+plot(temp)
+densityplot(temp)
+
 ```
+
+The trace lines appear to be stationary and free of trends, indicating convergence. We can see that the density distribution of each of the imputed datasets (in red) is congruent with the original one (in blue). 
+
+```{r}
+model1 = with(temp, glm(Y ~ AGE + GREEN + PHC+BEDNET, family="binomial"))
+summary(pool(model1))
+```
+
+After fitting a logistic regression to each of the 10 generated datasets, we can see that the bednet variable is actually not significant.
 
 # Contributions
 
-blah
-
-<!--
-Mice stuff 
-
- ```{r}
- data <- read.table("kellydat.txt", header=T)
- data$race = 0
- data$race[data$black==1|data$hisp==1] = 1
- data$sn0 = 0
- data$sn0[data$sn1==0 & data$sn2==0 & data$sn3==0 & data$all4==0] = 1
- 
- data.imp = data
- data.imp$nctdel[data.imp$fail == 0] = NA
- 
- #md.pattern(data.imp[!is.na(data.imp$nctdel),])
- 
- tempData <- mice(data.imp,m=5,maxit=50,meth='pmm',seed=500, print=FALSE)
- # methods: 
- # 2l.norm / 2l.pan / 2lonly.mean / 2lonly.norm / 2lonly.pmm / 
- # cart / fastpmm / lda / logreg / logreg.boot / mean / midastouch / norm / norm.boot / norm.nob / 
- # norm.predict / passive / pmm / polr / polyreg / quadratic / rf / ri / sample
- 
- #tempData$imp$nctdel
- 
- data.imp <- complete(tempData)
- 
- hist(log(data.imp$nctdel + 0.1))
- 
- fit <-lm(log(nctdel+0.1) ~ sn0 + sn1 + sn2 + race + male, data = data)
- ```
- 
- ##Diagnostic 
- 
- 
- 
- 
- 
- 
- 
- ```{r}
- library(VIM)
- library(mice)
- 
- 
- ##looking for pattern of missing data
- md.pattern(data.imp)
- 
- #visualizations: 
- aggr_plot <- aggr(data, col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, labels=names(data), cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
- 
- marginplot(data.imp[c(1,2)])
- marginplot(data[c(1,3)])
- marginplot(data[c(1,4)])
- marginplot(data[c(1,5)])
- marginplot(data[c(1,6)])
- marginplot(data[c(1,7)])
- marginplot(data[c(1,8)])
- marginplot(data[c(1,9)])
- marginplot(data[c(1,10)])
- 
- 
- 
- #visualize distribution of original and imputed data- check if imputed data is lausible
- 
- #xyplot(tempData,nctdel ~ fail+male+black,pch=18,cex=1)  
- 
- #densityplot(tempData)
- 
-#stripplot(data, pch = 20, cex = 1.2)
-```
--->
