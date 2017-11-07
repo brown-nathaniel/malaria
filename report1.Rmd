@@ -101,6 +101,7 @@ Since the data is not MCAR, we cannot use bootstrapping within the bednet variab
 
 ```{r}
 temp <- mice(dat, m = 10, maxit = 35,method = c("", "", "logreg", "", "", ""), print = FALSE)
+summary(temp)
 plot(temp)
 densityplot(temp)
 
@@ -108,6 +109,14 @@ densityplot(temp)
 
 The trace lines appear to be stationary and free of trends, indicating convergence. We can see that the density distribution of each of the imputed datasets (in red) is congruent with the original one (in blue). 
 
+
+```{r}
+model1 = with(temp, glm(Y ~ AGE + GREEN + PHC+BEDNET, family="binomial"))
+summary(pool(model1))
+```
+
+After fitting a logistic regression to each of the 10 generated datasets, we can see that the bednet variable is actually not significant.
+
 # Contributions
 
-Nathaniel made the Exploratory Data Analysis plots on the missingess of the bednet variable, and wrote the observations.
+Nathaniel made the Exploratory Data Analysis plots on the missingness of the bednet variable, and wrote the observations. Huijia worked on the Discussion of Approaches section.
