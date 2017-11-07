@@ -16,7 +16,7 @@ library(VIM)
 
 # Introduction
 
-We are interested in predicting whether malaria parasites will be found in a child's blood based on his/her age, bednet use, greenery in his/her village, and presence of a health clinic. However, almost 40% of the observations do not have bednet use reported, so we cannot throw out those observations and will instead use imputation to recreate those values.
+We are interested in predicting whether malaria parasites will be found in a child's blood based on his/her age, bednet use, the amount of greenery in his/her village, and the presence of a health clinic. However, almost 40% of the observations do not have bednet use reported, so we cannot throw out those observations, and will instead impute those values to predict the outcome.
 
 
 ```{r}
@@ -36,10 +36,12 @@ dat <- read.csv("gambiaMissing.csv")
 bednet_group <- function(dat= NA, predictor = NA){
   bednet_group <- dat %>% 
                 group_by_(predictor) %>% 
-                summarize(BEDNET0 = mean(BEDNET==0 & !is.na(BEDNET)), 
-                          BEDNET1 = mean(BEDNET==1 & !is.na(BEDNET)), 
+                summarize(#BEDNET0 = mean(BEDNET==0 & !is.na(BEDNET)), 
+                          #BEDNET1 = mean(BEDNET==1 & !is.na(BEDNET)), 
+                          BEDNET01 = mean(!is.na(BEDNET)),
                           BEDNETNA = mean(is.na(BEDNET))) %>%
                 melt(id=predictor)
+  colnames(bednet_group) <- c("x", "missing", "y")
   return(bednet_group)
 }
 
@@ -48,15 +50,37 @@ bednet_green <- bednet_group(dat, "GREEN")
 bednet_phc <- bednet_group(dat, "PHC")
 bednet_y <- bednet_group(dat, "Y")
 
-ggplot(data=bednet_age, aes(x=as.factor(AGE), y=value, fill=variable)) + geom_col(position="dodge")
-ggplot(data=bednet_green, aes(x=as.factor(GREEN), y=value+1E-10, fill=variable)) + geom_col(position="dodge")
-ggplot(data=bednet_phc, aes(x=as.factor(PHC), y=value, fill=variable)) + geom_col(position="dodge")
-ggplot(data=bednet_y, aes(x=as.factor(Y), y=value, fill=variable)) + geom_col(position="dodge")
+ggplot(data=bednet_age, aes(x=as.factor(x), y=y, fill=missing)) + 
+  geom_col(position="stack") + 
+  labs(title="Age of Child by Missing Bednet",x="Age", y="Proportion", fill = "Missing") + 
+  scale_fill_discrete(labels = c("not missing", "missing")) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(data=bednet_green, aes(x=as.factor(x), y=y, fill=missing)) +
+  geom_col(position="stack") + 
+  labs(title="Amout of Greenery by Missing Bednet",x="Green", y="Proportion", fill = "Missing") + 
+  scale_fill_discrete(labels = c("not missing", "missing")) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(data=bednet_phc, aes(x=as.factor(x), y=y, fill=missing)) + 
+  geom_col(position="stack") +   
+  labs(title="Presence of Public Health Clinic by Missing Bednet",x="PHC", y="Proportion", fill = "Missing") + 
+  scale_fill_discrete(labels = c("not missing", "missing")) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(data=bednet_y, aes(x=as.factor(x), y=y, fill=missing)) + 
+  geom_col(position="stack") +   
+  labs(title="Presence of Malaria Parasites by Missing Bednet",x="Malaria", y="Proportion", fill = "Missing") + 
+  scale_fill_discrete(labels = c("not missing", "missing")) +
+  theme(plot.title = element_text(hjust = 0.5))
+
 ```
 
-There appears to be correlation between missingness in the bednet variable and the other predictors and the response.
+There appears to be a relationship between missingness in the bednet variable and age. As Age increases, the proportion of missing bednet responses increases. The other predictor variables and the response do not have an obvious visible relationship with missing bednet. We will use logistic regression to formally test the null hypothesis that the bednet data is missing completely at random (MCAR) versus the alternative that it is missing at random (MAR).
 
 # Test for Missingness Mechanism
+
+**description of the three mechanisms**
 
 ```{r}
 NArows <- which(is.na(dat$BEDNET))
@@ -68,11 +92,12 @@ fullmod <- glm(miss ~ AGE + GREEN + PHC, family="binomial", data=dat) #AGE and P
 pchisq(fullmod$deviance, fullmod$df.residual,lower = FALSE)
 
 ```
-Based on this test, the missingness mechanism is not completely at random. There is no way of knowing whether ir it MAR or NMAR. 
+
+Based on this test, the missingness mechanism is not MCAR. Therefore, we will assume it is MAR. **why? can we just say "because it's more convenient?"**
 
 # Discussion of Approaches
 
-Since the data is not MCAR, we cannot use bootstrapping within the bednet variable. We will use chained regression to impute the missing values and calculate malaria prevalence. 
+Since the data is not MCAR, we cannot use bootstrapping within the bednet variable. We will instead use chained regression using the MICE (Multivariate Imputation by Chained Equations) package to impute the missing values and calculate malaria prevalence. **explain what chained regression is**
 
 ```{r}
 temp <- mice(dat, method = c("", "", "logreg", "", "", ""), print = FALSE)
@@ -84,7 +109,7 @@ summary(complete(temp))
 
 # Contributions
 
-blah
+Nathaniel made the Exploratory Data Analysis plots on the missingess of the bednet variable, and wrote the observations.
 
 <!--
 Mice stuff 
