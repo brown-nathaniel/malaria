@@ -3,8 +3,8 @@ title: "report1"
 author: "Nathaniel Brown, Huijia Yu, Angie Shen"
 date: "November 6, 2017"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE, warning=FALSE}
@@ -138,7 +138,9 @@ Based on a Chi-Squared test comparing the deviance of the full model to the devi
 
 # Discussion of Approaches
 
-Since the data is not MCAR, we cannot use bootstrapping within the bednet variable. We will instead use chained regression using the MICE (Multivariate Imputation by Chained Equations) package to impute the missing values and calculate malaria prevalence. **explain what chained regression is**
+Since the data is not MCAR, we cannot use bootstrapping within the bednet variable. We will instead use chained regression using the MICE (Multivariate Imputation by Chained Equations) package to impute the missing values and calculate malaria prevalence.
+
+Multivariate imputation by chained equations (MICE) has emerged as a principled method of dealing with missing data. In the MICE procedure a series of regression models are run whereby each variable with missing data is modeled conditional upon the other variables in the data. This means that each variable can be modeled according to its distribution, with, for example, binary variables modeled using logistic regression and continuous variables modeled using linear regression. The entire imputation process is repeated to generate multiple imputed datasets. Creating multiple imputations, as opposed to single imputations, accounts for the statistical uncertainty in the imputations.
 
 ```{r}
 temp <- mice(dat, m = 10, maxit = 35,method = c("", "", "logreg", "", "", ""), print = FALSE)
@@ -164,4 +166,13 @@ After fitting a logistic regression to each of the 10 generated datasets, we can
 
 # Contributions
 
-Nathaniel made the Exploratory Data Analysis plots on the missingness of the bednet variable, and wrote the observations. Huijia worked on the Discussion of Approaches section.
+Nathaniel made the Exploratory Data Analysis plots on the missingness of the bednet variable, and wrote the observations. Huijia worked on the Discussion of Approaches section. Angie worked on chained regression.
+
+# References
+
+Azur, M. J., Stuart, E. A., Frangakis, C., & Leaf, P. J. (2011). Multiple Imputation by Chained Equations: What is it and how does it work? International Journal of Methods in Psychiatric Research, 20(1), 40–49. http://doi.org/10.1002/mpr.329
+
+
+
+
+
