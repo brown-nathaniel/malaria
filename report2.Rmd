@@ -13,6 +13,7 @@ library(reshape2)
 library(ggplot2)
 library(dplyr)
 library(mice)
+library(micemd)
 library(VIM)
 library(knitr)
 ```
@@ -114,36 +115,11 @@ ggplot(data=bednet_y, aes(x=as.factor(x), y=y, fill=missing)) +
 
 ```
 
-There appears to be a relationship between missingness in the bednet variable and age. As Age increases, the proportion of missing bednet responses increases. The other predictor variables and the response do not have an obvious visible relationship with missing bednet. We will use logistic regression to formally test the null hypothesis that the bednet data is missing completely at random (MCAR) versus the alternative that it is missing at random (MAR).
-
-# Test for Missingness Mechanism
-
-**description of the three mechanisms**
-
-To test the assumption of the MCAR mechanism versus MAR, we build a logistic regression model to determine if our observed predictors (age, green, and public health clinic) are preditive of the missing bednet values. If this "full" model is not a better predictor than a "null" model with only an intercept, then we do not reject the null hypothesis that the missingness mechanism is MCAR.
-
+# Multivariate Imputation by Chained Equations (MICE)
 
 ```{r}
-NArows <- which(is.na(dat$BEDNET))
-dat$miss <- as.numeric(is.na(dat$BEDNET))
-
-nullmod <- glm(miss ~ 1, family="binomial", data=dat)
-fullmod <- glm(miss ~ AGE + GREEN + PHC, family="binomial", data=dat) #AGE and PHC appear to be "significant" predictors of missing BEDNET
-pval <-  anova(nullmod, fullmod, test="Chisq")[[5]][2]
-#pval <- pchisq(fullmod$deviance, fullmod$df.residual,lower = FALSE)
-
-```
-
-Based on a Chi-Squared test comparing the deviance of the full model to the deviance of the null model, there is extremely strong evidence that the missingness mechanism is MAR instead of MCAR (p=`r round(pval,4)`). There is no way of knowing whether it is MAR or NMAR, since NMAR implies that the missing mechanism depends on unobserved factors.
-
-# Discussion of Approaches
-
-Since the data is not MCAR, we cannot use bootstrapping within the bednet variable. We will instead use chained regression using the MICE (Multivariate Imputation by Chained Equations) package to impute the missing values and calculate malaria prevalence.
-
-Multivariate imputation by chained equations (MICE) has emerged as a principled method of dealing with missing data. In the MICE procedure a series of regression models are run whereby each variable with missing data is modeled conditional upon the other variables in the data. This means that each variable can be modeled according to its distribution, with, for example, binary variables modeled using logistic regression and continuous variables modeled using linear regression. The entire imputation process is repeated to generate multiple imputed datasets. Creating multiple imputations, as opposed to single imputations, accounts for the statistical uncertainty in the imputations.
-
-```{r}
-temp <- mice(dat, m = 10, maxit = 35,method = c("", "", "logreg", "", "", ""), print = FALSE)
+m <- 10
+temp <- mice(dat, m = m, maxit = 35,method = c("", "", "logreg", "", "", ""), print = FALSE)
 #summary(temp)
 plot(temp)
 ```
@@ -156,10 +132,33 @@ densityplot(temp)
 
 The trace lines appear to be stationary and free of trends, indicating convergence. We can see that the density distribution of each of the imputed datasets (in red) is congruent with the original one (in blue). 
 
+# Predicting Malaria
 
 ```{r}
-model1 = with(temp, glm(Y ~ AGE + GREEN + PHC+BEDNET, family="binomial"))
+model0 = with(temp, glm(Y ~ 1, family="binomial"))
+model1sub = with(temp, glm(Y ~ AGE + GREEN + PHC, family="binomial"))
+model1 = with(temp, glm(Y ~ as.factor(AGE) + as.factor(GREEN) + as.factor(PHC) + as.factor(BEDNET), family="binomial"))
 kable(summary(pool(model1)) %>% '['(,-c(ncol(.), ncol(.)-1)))
+
+pool.compare(model1, model1sub, data=temp, method="likelihood")
+
+resids <- sapply(model1[[4]], residuals)
+fitvals <- sapply(model1[[4]], fitted.values)
+
+
+par(mfrow = c(4,3))
+for(i in 1:m){
+  arm::binnedplot(fitvals[,i], resids[,i], main = paste0("Binned Residuals (m=",i,")"))
+}
+
+pool_coef <- as.matrix(summary(pool(model1))[,"est"])
+dat_complete <- dat[complete.cases(dat),]
+dat_complete_matrix <- head(as.matrix(model.matrix(Y ~ as.factor(AGE) + as.factor(GREEN) + as.factor(PHC) + as.factor(BEDNET), data=dat_complete)))
+fitvals <- t(as.matrix(pool_coef)) %*% t(dat_complete_matrix)
+resids <- 
+
+  arm::binnedplot(as.numeric(fitvals), as.numeric(resids), main = paste0("Pooled Binned Residuals"))
+
 ```
 
 After fitting a logistic regression to each of the 10 generated datasets, we can see that the bednet variable is actually not significant at the $\alpha$=0.05 confidence level.
@@ -171,8 +170,3 @@ Nathaniel made the Exploratory Data Analysis plots on the missingness of the bed
 # References
 
 Azur, M. J., Stuart, E. A., Frangakis, C., & Leaf, P. J. (2011). Multiple Imputation by Chained Equations: What is it and how does it work? International Journal of Methods in Psychiatric Research, 20(1), 40–49. http://doi.org/10.1002/mpr.329
-
-
-
-
-
