@@ -1,0 +1,178 @@
+---
+title: "report2"
+author: "Nathaniel Brown, Huijia Yu, Angie Shen"
+date: "November 6, 2017"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message=FALSE)
+library(reshape2)
+library(ggplot2)
+library(dplyr)
+library(mice)
+library(VIM)
+library(knitr)
+```
+
+# Introduction
+
+We are interested in predicting whether malaria parasites will be found in a child's blood based on his/her age, bednet use, the amount of greenery in his/her village, and the presence of a health clinic. However, almost 40% of the observations do not have bednet use reported, so removing those observations would cause us to lose too much information. Instead, we will impute bednet values to predict the outcome.
+
+
+```{r}
+dat <- read.csv("gambiaMissing.csv")
+dat$Y = factor(dat$Y)
+dat$BEDNET = factor(dat$BEDNET)
+dat$PHC = factor(dat$PHC)
+dat$GREEN = factor(as.character(formatC(dat$GREEN, format='f', digits=2)))
+
+```
+
+
+# Exploratory Data Analysis
+
+In the graphs below, we illustrate the frequency of each category within each the dataset:
+
+```{r, fig.height=2, fig.width=3}
+ylabel <- dat %>% group_by(Y) %>% summarize(n=n()) %>% '[['(2) %>% as.numeric()
+agelabel <- dat %>% group_by(AGE) %>% summarize(n=n()) %>% '[['(2) %>% as.numeric()
+bednetlabel <- dat %>% group_by(BEDNET) %>% summarize(n=n()) %>% '[['(2) %>% as.numeric()
+greenlabel <- dat %>% group_by(GREEN) %>% summarize(n=n()) %>% '[['(2) %>% as.numeric()
+phclabel <- dat %>% group_by(PHC) %>% summarize(n=n()) %>% '[['(2) %>% as.numeric()
+
+ggplot(data=dat, aes(x=Y)) + 
+  geom_bar(fill = "gold") + 
+  geom_text(data = data.frame(), aes(x=sort(unique(dat$Y)), y=ylabel/2, label=ylabel)) 
+
+ggplot(data=dat, aes(x=AGE)) + 
+  geom_bar(fill = "red") + 
+  geom_text(data = data.frame(), aes(x=sort(unique(dat$AGE)), y=agelabel/2, label=agelabel))
+
+ggplot(data=dat, aes(x=BEDNET)) + 
+  geom_bar(fill = "blue") + 
+  geom_text(data = data.frame(), aes(x=sort(unique(dat$BEDNET), na.last=TRUE), y=bednetlabel/2, label=bednetlabel))
+
+ggplot(data=dat, aes(x=GREEN)) + 
+  geom_bar(fill = "green") + 
+  geom_text(data = data.frame(), aes(x=sort(unique(dat$GREEN)), y=greenlabel/2, label=greenlabel))
+
+ggplot(data=dat, aes(x=PHC)) + 
+  geom_bar(fill = "purple") + 
+  geom_text(data = data.frame(), aes(x=sort(unique(dat$PHC)), y=phclabel/2, label=phclabel))
+
+```
+
+
+Below, we investigate the proportions of missing bednet responses by each level of the predictors.
+
+```{r, fig.height=2, fig.width=3}
+dat <- read.csv("gambiaMissing.csv")
+
+bednet_group <- function(dat= NA, predictor = NA){
+  bednet_group <- dat %>% 
+                group_by_(predictor) %>% 
+                summarize(#BEDNET0 = mean(BEDNET==0 & !is.na(BEDNET)), 
+                          #BEDNET1 = mean(BEDNET==1 & !is.na(BEDNET)), 
+                          BEDNET01 = mean(!is.na(BEDNET)),
+                          BEDNETNA = mean(is.na(BEDNET))) %>%
+                melt(id=predictor)
+  colnames(bednet_group) <- c("x", "missing", "y")
+  return(bednet_group)
+}
+
+bednet_age <- bednet_group(dat, "AGE")
+bednet_green <- bednet_group(dat, "GREEN")
+bednet_phc <- bednet_group(dat, "PHC")
+bednet_y <- bednet_group(dat, "Y")
+
+ggplot(data=bednet_age, aes(x=as.factor(x), y=y, fill=missing)) + 
+  geom_col(position="stack") + 
+  labs(title="Age by Bednet",x="Age", y="Proportion", fill = "Missing") + 
+  scale_fill_discrete(labels = c("not missing", "missing")) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(data=bednet_green, aes(x=as.factor(x), y=y, fill=missing)) +
+  geom_col(position="stack") + 
+  labs(title="Greenery by Bednet",x="Green", y="Proportion", fill = "Missing") + 
+  scale_fill_discrete(labels = c("not missing", "missing")) +
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x=element_text(size=5))
+
+ggplot(data=bednet_phc, aes(x=as.factor(x), y=y, fill=missing)) + 
+  geom_col(position="stack") +   
+  labs(title=" Health Clinic by Bednet",x="PHC", y="Proportion", fill = "Missing") + 
+  scale_fill_discrete(labels = c("not missing", "missing")) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(data=bednet_y, aes(x=as.factor(x), y=y, fill=missing)) + 
+  geom_col(position="stack") +   
+  labs(title="Parasites by Bednet",x="Malaria", y="Proportion", fill = "Missing") + 
+  scale_fill_discrete(labels = c("not missing", "missing")) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+There appears to be a relationship between missingness in the bednet variable and age. As Age increases, the proportion of missing bednet responses increases. The other predictor variables and the response do not have an obvious visible relationship with missing bednet. We will use logistic regression to formally test the null hypothesis that the bednet data is missing completely at random (MCAR) versus the alternative that it is missing at random (MAR).
+
+# Test for Missingness Mechanism
+
+**description of the three mechanisms**
+
+To test the assumption of the MCAR mechanism versus MAR, we build a logistic regression model to determine if our observed predictors (age, green, and public health clinic) are preditive of the missing bednet values. If this "full" model is not a better predictor than a "null" model with only an intercept, then we do not reject the null hypothesis that the missingness mechanism is MCAR.
+
+
+```{r}
+NArows <- which(is.na(dat$BEDNET))
+dat$miss <- as.numeric(is.na(dat$BEDNET))
+
+nullmod <- glm(miss ~ 1, family="binomial", data=dat)
+fullmod <- glm(miss ~ AGE + GREEN + PHC, family="binomial", data=dat) #AGE and PHC appear to be "significant" predictors of missing BEDNET
+pval <-  anova(nullmod, fullmod, test="Chisq")[[5]][2]
+#pval <- pchisq(fullmod$deviance, fullmod$df.residual,lower = FALSE)
+
+```
+
+Based on a Chi-Squared test comparing the deviance of the full model to the deviance of the null model, there is extremely strong evidence that the missingness mechanism is MAR instead of MCAR (p=`r round(pval,4)`). There is no way of knowing whether it is MAR or NMAR, since NMAR implies that the missing mechanism depends on unobserved factors.
+
+# Discussion of Approaches
+
+Since the data is not MCAR, we cannot use bootstrapping within the bednet variable. We will instead use chained regression using the MICE (Multivariate Imputation by Chained Equations) package to impute the missing values and calculate malaria prevalence.
+
+Multivariate imputation by chained equations (MICE) has emerged as a principled method of dealing with missing data. In the MICE procedure a series of regression models are run whereby each variable with missing data is modeled conditional upon the other variables in the data. This means that each variable can be modeled according to its distribution, with, for example, binary variables modeled using logistic regression and continuous variables modeled using linear regression. The entire imputation process is repeated to generate multiple imputed datasets. Creating multiple imputations, as opposed to single imputations, accounts for the statistical uncertainty in the imputations.
+
+```{r}
+temp <- mice(dat, m = 10, maxit = 35,method = c("", "", "logreg", "", "", ""), print = FALSE)
+#summary(temp)
+plot(temp)
+```
+
+```{r, fig.height=3,fig.width=5}
+
+densityplot(temp)
+
+```
+
+The trace lines appear to be stationary and free of trends, indicating convergence. We can see that the density distribution of each of the imputed datasets (in red) is congruent with the original one (in blue). 
+
+
+```{r}
+model1 = with(temp, glm(Y ~ AGE + GREEN + PHC+BEDNET, family="binomial"))
+kable(summary(pool(model1)) %>% '['(,-c(ncol(.), ncol(.)-1)))
+```
+
+After fitting a logistic regression to each of the 10 generated datasets, we can see that the bednet variable is actually not significant at the $\alpha$=0.05 confidence level.
+
+# Contributions
+
+Nathaniel made the Exploratory Data Analysis plots on the missingness of the bednet variable, and wrote the observations. Huijia worked on the Discussion of Approaches section. Angie worked on chained regression.
+
+# References
+
+Azur, M. J., Stuart, E. A., Frangakis, C., & Leaf, P. J. (2011). Multiple Imputation by Chained Equations: What is it and how does it work? International Journal of Methods in Psychiatric Research, 20(1), 40–49. http://doi.org/10.1002/mpr.329
+
+
+
+
+
