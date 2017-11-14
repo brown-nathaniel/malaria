@@ -119,7 +119,7 @@ ggplot(data=bednet_y, aes(x=as.factor(x), y=y, fill=missing)) +
 
 ```{r}
 m <- 10
-temp <- mice(dat, m = m, maxit = 35,method = c("", "", "logreg", "", "", ""), print = FALSE)
+temp <- mice(dat, m = m, maxit = 35,method = c("", "", "logreg", "", ""), print = FALSE)
 #summary(temp)
 plot(temp)
 ```
@@ -134,13 +134,12 @@ The trace lines appear to be stationary and free of trends, indicating convergen
 
 # Predicting Malaria
 
+To predict whether someoneone will get malaria and to calculate the effect of each predictor, we use a logistic regression model, which is applied to each generated dataset individually.
+
 ```{r}
 model0 = with(temp, glm(Y ~ 1, family="binomial"))
-model1sub = with(temp, glm(Y ~ AGE + GREEN + PHC, family="binomial"))
+model1sub = with(temp, glm(Y ~ as.factor(AGE) + as.factor(GREEN) + as.factor(PHC), family="binomial"))
 model1 = with(temp, glm(Y ~ as.factor(AGE) + as.factor(GREEN) + as.factor(PHC) + as.factor(BEDNET), family="binomial"))
-kable(summary(pool(model1)) %>% '['(,-c(ncol(.), ncol(.)-1)))
-
-pool.compare(model1, model1sub, data=temp, method="likelihood")
 
 resids <- sapply(model1[[4]], residuals)
 fitvals <- sapply(model1[[4]], fitted.values)
@@ -158,6 +157,41 @@ fitvals <- arm::invlogit(t(as.matrix(pool_coef)) %*% t(dat_complete_matrix))
 resids <- as.numeric(dat_complete[,1]) - fitvals - 1
 
   arm::binnedplot(as.numeric(fitvals), as.numeric(resids), main = paste0("Pooled Binned Residuals"))
+
+```
+
+Neither the pooled nor the individual residuals display any trends or changes in variance, which means this model is appropriate.
+
+We can also check the accuracy of the model by looking at the confusion matrix for the pooled model.
+
+```{r}
+confusion <- table(dat_complete$Y, round(fitvals))
+fourfoldplot(confusion)
+```
+
+The model is correct most of the time, but it has a lot of false negatives.
+
+```{r}
+plot(pROC::roc(dat_complete$Y, as.numeric(fitvals)),
+     main = "ROC Curve for Malaria Predictions")
+```
+
+The ROC curve shows us that the predictions are not too accurate.
+
+
+# Inference on Coefficients
+
+```{r}
+kable(summary(pool(model1)) %>% '['(,-c(ncol(.), ncol(.)-1)))
+
+```
+
+
+To further confirm that the bednet variable is not significant but the others are, we use a likelihood test comparing the null model to the one without BEDNET, and then one comparing models with and without BEDNET.
+
+```{r}
+pool.compare(model1, model1sub, data=temp, method="likelihood")$pvalue
+pool.compare(model1sub,model0, data=temp, method="likelihood")$pvalue
 
 ```
 
