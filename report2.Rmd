@@ -3,8 +3,8 @@ title: "report2"
 author: "Nathaniel Brown, Huijia Yu, Angie Shen"
 date: "November 6, 2017"
 output:
-  html_document: default
   pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE, warning=FALSE}
@@ -124,7 +124,7 @@ temp <- mice(dat, m = m, maxit = 35,method = c("", "", "logreg", "", ""), print 
 plot(temp)
 ```
 
-```{r, fig.height=3,fig.width=5}
+```{r, fig.align = 'center', fig.height=3,fig.width=5}
 
 densityplot(temp)
 
@@ -132,11 +132,11 @@ densityplot(temp)
 
 The trace lines appear to be stationary and free of trends, indicating convergence. We can see that the density distribution of each of the imputed datasets (in red) is congruent with the original one (in blue). 
 
-# Predicting Malaria
+# Predicting Malaria Parasites
 
-To predict whether someoneone will get malaria and to calculate the effect of each predictor, we use a logistic regression model, which is applied to each generated dataset individually.
+To predict whether someoneone will have malaria parasites, and to calculate the effect of each predictor (age, surrounding greenery, and accessible public health clinic), we build a logistic regression model on each generated dataset individually, and the pooled data. Below, we display the binned residual plots for each logistic regression model:
 
-```{r}
+```{r, fig.height=10, fig.width=10}
 model0 = with(temp, glm(Y ~ 1, family="binomial"))
 model1sub = with(temp, glm(Y ~ as.factor(AGE) + as.factor(GREEN) + as.factor(PHC), family="binomial"))
 model1 = with(temp, glm(Y ~ as.factor(AGE) + as.factor(GREEN) + as.factor(PHC) + as.factor(BEDNET), family="binomial"))
@@ -154,48 +154,53 @@ pool_coef <- as.matrix(summary(pool(model1))[,"est"])
 dat_complete <- dat[complete.cases(dat),]
 dat_complete_matrix <- (as.matrix(model.matrix(Y ~ as.factor(AGE) + as.factor(GREEN) + as.factor(PHC) + as.factor(BEDNET), data=dat_complete)))
 fitvals <- arm::invlogit(t(as.matrix(pool_coef)) %*% t(dat_complete_matrix))
-resids <- as.numeric(dat_complete[,1]) - fitvals - 1
+resids <- as.numeric(dat_complete[,1]) - fitvals #- 1
 
   arm::binnedplot(as.numeric(fitvals), as.numeric(resids), main = paste0("Pooled Binned Residuals"))
 
 ```
 
-Neither the pooled nor the individual residuals display any trends or changes in variance, which means this model is appropriate.
+Neither the pooled nor the individual residuals display any trends or changes in variance, which means this model is appropriate and meets the assumptions for constant variance of the logit probabilities.
 
-We can also check the accuracy of the model by looking at the confusion matrix for the pooled model.
+We can also check the accuracy of the model by looking at the confusion matrix and ROC curve for the pooled model.
 
-```{r}
+```{r, fig.height=4, fig.width=4, fig.align='center'}
 confusion <- table(dat_complete$Y, round(fitvals))
 fourfoldplot(confusion)
 ```
 
 The model is correct most of the time, but it has a lot of false negatives.
 
-```{r}
-plot(pROC::roc(dat_complete$Y, as.numeric(fitvals)),
+```{r,  fig.height=4, fig.width=4, fig.align='center'}
+rock <- pROC::roc(dat_complete$Y, as.numeric(fitvals))
+plot(rock,
      main = "ROC Curve for Malaria Predictions")
 ```
 
-The ROC curve shows us that the predictions are not too accurate.
+The ROC curve shows us that the predictions are not accurate. We can see whenever we observe a high true positive rate (sensitivity), there must also be a low true negative rate (specificity), and vise versa.  for high sensitivity (true positive rate), we must have low specificity (true negative rate). The area under the curve is `r round(as.numeric(rock$auc),4)`, which is not much better than a random predictor at 0.5 (the gray line on the plot).
 
 
 # Inference on Coefficients
 
 ```{r}
-kable(summary(pool(model1)) %>% '['(,-c(ncol(.), ncol(.)-1)))
-
-```
-
-
-To further confirm that the bednet variable is not significant but the others are, we use a likelihood test comparing the null model to the one without BEDNET, and then one comparing models with and without BEDNET.
-
-```{r}
-pool.compare(model1, model1sub, data=temp, method="likelihood")$pvalue
-pool.compare(model1sub,model0, data=temp, method="likelihood")$pvalue
+sumtab <- summary(pool(model1))
+rownames(sumtab) <- c("Intercept", "AGE = 2", "AGE = 3", "AGE = 4", "GREEN = 33.65", "GREEN = 40.1", "GREEN = 40.85", "GREEN = 47.65", "PHC = 1", "BEDNET = 1")
+sumtab %>% '['(,-c(ncol(.), ncol(.)-1)) %>% kable()
 
 ```
 
 After fitting a logistic regression to each of the 10 generated datasets, we can see that the bednet variable is actually not significant at the $\alpha$=0.05 confidence level.
+
+
+```{r}
+#pool.compare(model1, model1sub, data=temp, method="likelihood")$pvalue
+poool <- pool.compare(model1,model1sub, data=temp, method="likelihood")$pvalue
+
+```
+
+To further confirm that the bednet variable is not a significant predictor of malaria, we use a likelihood test comparing models with and without BEDNET. The p-value of this test is `r round(poool,4)`, which means that the larger model with bednet as a predictor does not explain deviance significantly better than the smaller one.
+
+
 
 # Contributions
 
@@ -203,4 +208,4 @@ Nathaniel made the Exploratory Data Analysis plots on the missingness of the bed
 
 # References
 
-Azur, M. J., Stuart, E. A., Frangakis, C., & Leaf, P. J. (2011). Multiple Imputation by Chained Equations: What is it and how does it work? International Journal of Methods in Psychiatric Research, 20(1), 40–49. http://doi.org/10.1002/mpr.329
+Azur, M. J., Stuart, E. A., Frangakis, C., & Leaf, P. J. (2011). Multiple Imputation by Chained Equations: What is it and how does it work? International Journal of Methods in Psychiatric Research, 20(1), 40-49. http://doi.org/10.1002/mpr.329
