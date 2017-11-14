@@ -153,9 +153,9 @@ for(i in 1:m){
 
 pool_coef <- as.matrix(summary(pool(model1))[,"est"])
 dat_complete <- dat[complete.cases(dat),]
-dat_complete_matrix <- head(as.matrix(model.matrix(Y ~ as.factor(AGE) + as.factor(GREEN) + as.factor(PHC) + as.factor(BEDNET), data=dat_complete)))
-fitvals <- t(as.matrix(pool_coef)) %*% t(dat_complete_matrix)
-resids <- 
+dat_complete_matrix <- (as.matrix(model.matrix(Y ~ as.factor(AGE) + as.factor(GREEN) + as.factor(PHC) + as.factor(BEDNET), data=dat_complete)))
+fitvals <- arm::invlogit(t(as.matrix(pool_coef)) %*% t(dat_complete_matrix))
+resids <- as.numeric(dat_complete[,1]) - fitvals - 1
 
   arm::binnedplot(as.numeric(fitvals), as.numeric(resids), main = paste0("Pooled Binned Residuals"))
 
