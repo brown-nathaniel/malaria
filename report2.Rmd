@@ -16,7 +16,6 @@ library(mice)
 library(micemd)
 library(VIM)
 library(knitr)
-library(caret)
 ```
 
 # Introduction
@@ -166,13 +165,11 @@ Neither the pooled nor the individual residuals display any trends or changes in
 We can also check the accuracy of the model by looking at the confusion matrix and ROC curve for the pooled model.
 
 ```{r, fig.height=4, fig.width=4, fig.align='center'}
-confusion <- confusionMatrix(round(fitvals),dat_complete$Y)
-confusion
-fourfoldplot(confusion$table)
-
+confusion <- table(dat_complete$Y, round(fitvals))
+fourfoldplot(confusion)
 ```
 
-The model accuracy is .63 which is somewhat better than a random predictor, and it has a lot of false negatives. We can see from the confusion matrix that the model predicted almost no 1's (malaria parasites in blood), even though the true proportion is much larger. This could be problematic for this dataset because it would be much more dangerous to predict false negatives than false positives. This indicates that the model is not appropriate for prediction, or that more imputed datasets were needed to achieve a better model.
+The model is correct most of the time, but it has a lot of false negatives.
 
 ```{r,  fig.height=4, fig.width=4, fig.align='center'}
 rock <- pROC::roc(dat_complete$Y, as.numeric(fitvals))
