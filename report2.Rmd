@@ -207,7 +207,7 @@ To further confirm that the bednet variable is not a significant predictor of ma
 
 # Contributions
 
-Nathaniel made the Exploratory Data Analysis plots on the missingness of the bednet variable, and wrote the observations. Huijia worked on the Discussion of Approaches section. Angie worked on chained regression.
+Nathaniel made the Exploratory Data Analysis plots on the missingness of the bednet variable, and completed the ROC analysis. Huijia worked on the Discussion of Approaches section. Angie worked on chained regression.
 
 # References
 
